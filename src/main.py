@@ -1,85 +1,106 @@
 import sys
 import os
-from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout,
-    QLabel, QTextEdit, QPushButton, QFileDialog, QMessageBox
-)
-from docx import Document
 from datetime import datetime
+from docx import Document
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QLabel, QTextEdit, 
+    QPushButton, QFileDialog, QMessageBox, QTabWidget, QMainWindow
+)
 
-# ---------- Setup output folder ----------
-timestamp = datetime.now().strftime("%d-%m_%Y-%H_%M_%S")
-downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-output_folder = os.path.join(downloads_folder, f"generated_files_{timestamp}")
+class GeneratorTab(QWidget):
+    """The existing Name Generator logic encapsulated in a tab."""
+    def __init__(self):
+        super().__init__()
+        self.template_file_path = None
+        self.setup_ui()
 
-# ---------- Application ----------
-app = QApplication(sys.argv)
-window = QWidget()
-window.setWindowTitle("Name Generator App")
-window.setGeometry(100, 100, 400, 400)
+    def setup_ui(self):
+        layout = QVBoxLayout()
 
-layout = QVBoxLayout()
+        # Input Section
+        layout.addWidget(QLabel("Enter names (one per line):"))
+        self.names_text = QTextEdit()
+        layout.addWidget(self.names_text)
 
-# Label
-label = QLabel("Enter names (one per line):")
-layout.addWidget(label)
+        # Template Selection
+        self.file_button = QPushButton("Select Template File")
+        self.file_button.clicked.connect(self.select_file)
+        layout.addWidget(self.file_button)
 
-# Text area for names
-names_text = QTextEdit()
-layout.addWidget(names_text)
+        self.template_label = QLabel("Template: None selected")
+        layout.addWidget(self.template_label)
 
-# File selector
-template_file_path = None
+        # Generate Action
+        self.generate_button = QPushButton("Generate Files")
+        self.generate_button.clicked.connect(self.generate_files)
+        layout.addWidget(self.generate_button)
 
-def select_file():
-    global template_file_path
-    file_dialog = QFileDialog()
-    file_dialog.setNameFilter("Word Documents (*.docx)")
-    file_dialog.setFileMode(QFileDialog.ExistingFile)
-    if file_dialog.exec():
-        selected_files = file_dialog.selectedFiles()
-        if selected_files:
-            template_file_path = selected_files[0]
-            template_label.setText(f"Template: {os.path.basename(template_file_path)}")
+        self.setLayout(layout)
 
-file_button = QPushButton("Select Template File")
-file_button.clicked.connect(select_file)
-layout.addWidget(file_button)
+    def select_file(self):
+        file_dialog = QFileDialog()
+        file_dialog.setNameFilter("Word Documents (*.docx)")
+        file_dialog.setFileMode(QFileDialog.ExistingFile)
+        if file_dialog.exec():
+            selected_files = file_dialog.selectedFiles()
+            if selected_files:
+                self.template_file_path = selected_files[0]
+                self.template_label.setText(f"Template: {os.path.basename(self.template_file_path)}")
 
-template_label = QLabel("Template: None selected")
-layout.addWidget(template_label)
+    def generate_files(self):
+        if not self.template_file_path:
+            QMessageBox.warning(self, "Error", "Please select a template file first.")
+            return
 
-# Generate files button
-def generate_files():
-    global template_file_path
-    if not template_file_path:
-        QMessageBox.warning(window, "Error", "Please select a template file first.")
-        return
+        names = [n.strip() for n in self.names_text.toPlainText().splitlines() if n.strip()]
+        if not names:
+            QMessageBox.warning(self, "Error", "Please enter at least one name.")
+            return
+        
+        # Output setup
+        timestamp = datetime.now().strftime("%d-%m_%Y-%H_%M_%S")
+        downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+        output_folder = os.path.join(downloads_folder, f"generated_files_{timestamp}")
+        
+        template_name_no_ext = os.path.splitext(os.path.basename(self.template_file_path))[0]
+        os.makedirs(output_folder, exist_ok=True)
 
-    names = [n.strip() for n in names_text.toPlainText().splitlines() if n.strip()]
-    if not names:
-        QMessageBox.warning(window, "Error", "Please enter at least one name.")
-        return
-    
-    template_name_no_ext = os.path.splitext(os.path.basename(template_file_path))[0]
-    os.makedirs(output_folder, exist_ok=True)
-    for name in names:
-        doc = Document(template_file_path)
-        # Replace placeholders in all paragraphs
-        for paragraph in doc.paragraphs:
-            if "{{name}}" in paragraph.text:
-                paragraph.text = paragraph.text.replace("{{name}}", name)
+        for name in names:
+            doc = Document(self.template_file_path)
+            for paragraph in doc.paragraphs:
+                if "{{name}}" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("{{name}}", name)
 
-        output_file = os.path.join(output_folder, f"{template_name_no_ext}-{name}.docx")
-        doc.save(output_file)
+            output_file = os.path.join(output_folder, f"{template_name_no_ext}-{name}.docx")
+            doc.save(output_file)
 
-    QMessageBox.information(window, "Success", f"{len(names)} files created in {output_folder}")
+        QMessageBox.information(self, "Success", f"{len(names)} files created in {output_folder}")
 
-generate_button = QPushButton("Generate Files")
-generate_button.clicked.connect(generate_files)
-layout.addWidget(generate_button)
+class FutureTab(QWidget):
+    """Placeholder for your future feature."""
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("🚀 Future Feature Coming Soon!"))
+        layout.addStretch() # Pushes content to the top
+        self.setLayout(layout)
 
-# Set layout and show
-window.setLayout(layout)
-window.show()
-sys.exit(app.exec())
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Name Generator App v2.0")
+        self.resize(450, 500)
+
+        # Central Widget & Main Layout
+        self.tabs = QTabWidget()
+        self.setCentralWidget(self.tabs)
+
+        # Add Tabs
+        self.tabs.addTab(GeneratorTab(), "Name Generator")
+        self.tabs.addTab(FutureTab(), "Advanced Settings")
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
