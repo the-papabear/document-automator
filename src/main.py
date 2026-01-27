@@ -2,27 +2,57 @@ import sys
 import os
 from datetime import datetime
 from docx import Document
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QTextEdit, 
+    QLineEdit, QHBoxLayout, QListWidget, QListWidgetItem, QApplication, QWidget, QVBoxLayout, QLabel, 
     QPushButton, QFileDialog, QMessageBox, QTabWidget, QMainWindow
 )
 
 class GeneratorTab(QWidget):
-    """The existing Name Generator logic encapsulated in a tab."""
     def __init__(self):
         super().__init__()
+        self.settings = QSettings("MySeniorDevCo", "NameGenerator")
         self.template_file_path = None
         self.setup_ui()
+        self.load_names()
 
     def setup_ui(self):
         layout = QVBoxLayout()
 
-        # Input Section
-        layout.addWidget(QLabel("Enter names (one per line):"))
-        self.names_text = QTextEdit()
-        layout.addWidget(self.names_text)
+        # --- Adding Names Section ---
+        add_layout = QHBoxLayout()
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("Type a name and press Enter...")
+        self.name_input.returnPressed.connect(self.add_name_item)
+        
+        add_btn = QPushButton("Add")
+        add_btn.clicked.connect(self.add_name_item)
+        
+        add_layout.addWidget(self.name_input)
+        add_layout.addWidget(add_btn)
+        layout.addLayout(add_layout)
 
-        # Template Selection
+        # --- Select/Deselect All Buttons ---
+        bulk_layout = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        deselect_all_btn = QPushButton("Deselect All")
+        
+        # Using lambda for quick, simple connections
+        select_all_btn.clicked.connect(lambda: self.toggle_all(Qt.Checked))
+        deselect_all_btn.clicked.connect(lambda: self.toggle_all(Qt.Unchecked))
+        
+        bulk_layout.addWidget(select_all_btn)
+        bulk_layout.addWidget(deselect_all_btn)
+        layout.addLayout(bulk_layout)
+
+        # --- The List ---
+        layout.addWidget(QLabel("Double-click to edit, check to include:"))
+        self.names_list = QListWidget()
+        self.names_list.setSelectionMode(QListWidget.ExtendedSelection) # Allows multi-select for deletion
+        self.names_list.model().dataChanged.connect(self.save_names)
+        layout.addWidget(self.names_list)
+
+        # ... (rest of your template selection and generate buttons) ...
         self.file_button = QPushButton("Select Template File")
         self.file_button.clicked.connect(self.select_file)
         layout.addWidget(self.file_button)
@@ -30,12 +60,54 @@ class GeneratorTab(QWidget):
         self.template_label = QLabel("Template: None selected")
         layout.addWidget(self.template_label)
 
-        # Generate Action
         self.generate_button = QPushButton("Generate Files")
         self.generate_button.clicked.connect(self.generate_files)
         layout.addWidget(self.generate_button)
 
         self.setLayout(layout)
+
+    def toggle_all(self, state):
+        """Sets the check state for every item in the list."""
+        for i in range(self.names_list.count()):
+            self.names_list.item(i).setCheckState(state)
+        
+    def add_name_item(self, name_text=None):
+        """Creates a new checkable, editable list item."""
+        # Handle both button click and direct string passing
+        text = name_text if isinstance(name_text, str) else self.name_input.text().strip()
+        
+        if text:
+            item = QListWidgetItem(text)
+            # Flags: Checkable + Editable + Enabled + Selectable
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEditable)
+            item.setCheckState(Qt.Unchecked)
+            self.names_list.addItem(item)
+            self.name_input.clear()
+            self.save_names()
+
+    def save_names(self):
+        """Serializes the list items into QSettings."""
+        names = []
+        for i in range(self.names_list.count()):
+            names.append(self.names_list.item(i).text())
+        self.settings.setValue("persisted_names", names)
+
+    def load_names(self):
+        """Hydrates the list from QSettings."""
+        saved_names = self.settings.value("persisted_names", [])
+        # Qt's value() might return a single string or list; ensure it's a list
+        if isinstance(saved_names, str): saved_names = [saved_names]
+        
+        for name in saved_names:
+            self.add_name_item(name)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Delete and self.names_list.hasFocus():
+            for item in self.names_list.selectedItems():
+                self.names_list.takeItem(self.names_list.row(item))
+            self.save_names()
+        else:
+            super().keyPressEvent(event)
 
     def select_file(self):
         file_dialog = QFileDialog()
@@ -52,9 +124,15 @@ class GeneratorTab(QWidget):
             QMessageBox.warning(self, "Error", "Please select a template file first.")
             return
 
-        names = [n.strip() for n in self.names_text.toPlainText().splitlines() if n.strip()]
-        if not names:
-            QMessageBox.warning(self, "Error", "Please enter at least one name.")
+        # FIX: Get only the names that are checked in the QListWidget
+        selected_names = []
+        for i in range(self.names_list.count()):
+            item = self.names_list.item(i)
+            if item.checkState() == Qt.Checked:
+                selected_names.append(item.text())
+
+        if not selected_names:
+            QMessageBox.warning(self, "Error", "Please check at least one name in the list.")
             return
         
         # Output setup
@@ -65,7 +143,7 @@ class GeneratorTab(QWidget):
         template_name_no_ext = os.path.splitext(os.path.basename(self.template_file_path))[0]
         os.makedirs(output_folder, exist_ok=True)
 
-        for name in names:
+        for name in selected_names: # Using our filtered list
             doc = Document(self.template_file_path)
             for paragraph in doc.paragraphs:
                 if "{{name}}" in paragraph.text:
@@ -74,21 +152,21 @@ class GeneratorTab(QWidget):
             output_file = os.path.join(output_folder, f"{template_name_no_ext}-{name}.docx")
             doc.save(output_file)
 
-        QMessageBox.information(self, "Success", f"{len(names)} files created in {output_folder}")
+        QMessageBox.information(self, "Success", f"{len(selected_names)} files created in {output_folder}")
 
 class FutureTab(QWidget):
     """Placeholder for your future feature."""
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("🚀 Future Feature Coming Soon!"))
+        layout.addWidget(QLabel("ISO FILE UPDATER COMMING SOON..."))
         layout.addStretch() # Pushes content to the top
         self.setLayout(layout)
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Name Generator App v2.0")
+        self.setWindowTitle("Document Automator")
         self.resize(450, 500)
 
         # Central Widget & Main Layout
@@ -96,8 +174,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         # Add Tabs
-        self.tabs.addTab(GeneratorTab(), "Name Generator")
-        self.tabs.addTab(FutureTab(), "Advanced Settings")
+        self.tabs.addTab(GeneratorTab(), "Document Generator")
+        self.tabs.addTab(FutureTab(), "ISO File Updater")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
