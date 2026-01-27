@@ -1,14 +1,13 @@
-import sys
 import os
 from datetime import datetime
 from docx import Document
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import (
-    QLineEdit, QHBoxLayout, QListWidget, QListWidgetItem, QApplication, QWidget, QVBoxLayout, QLabel, 
-    QPushButton, QFileDialog, QMessageBox, QTabWidget, QMainWindow
+    QLineEdit, QHBoxLayout, QListWidget, QListWidgetItem, QWidget, QVBoxLayout, QLabel, 
+    QPushButton, QFileDialog, QMessageBox
 )
 
-class GeneratorTab(QWidget):
+class DocumentGeneratorTab(QWidget):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("MySeniorDevCo", "NameGenerator")
@@ -153,32 +152,3 @@ class GeneratorTab(QWidget):
             doc.save(output_file)
 
         QMessageBox.information(self, "Success", f"{len(selected_names)} files created in {output_folder}")
-
-class FutureTab(QWidget):
-    """Placeholder for your future feature."""
-    def __init__(self):
-        super().__init__()
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("ISO FILE UPDATER COMMING SOON..."))
-        layout.addStretch() # Pushes content to the top
-        self.setLayout(layout)
-
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Document Automator")
-        self.resize(450, 500)
-
-        # Central Widget & Main Layout
-        self.tabs = QTabWidget()
-        self.setCentralWidget(self.tabs)
-
-        # Add Tabs
-        self.tabs.addTab(GeneratorTab(), "Document Generator")
-        self.tabs.addTab(FutureTab(), "ISO File Updater")
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
