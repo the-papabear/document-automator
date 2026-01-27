@@ -1,3 +1,4 @@
 builds
 docs
 .DS_Store
+.prettierrc
