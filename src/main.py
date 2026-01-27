@@ -46,7 +46,7 @@ class GeneratorTab(QWidget):
         layout.addLayout(bulk_layout)
 
         # --- The List ---
-        layout.addWidget(QLabel("Double-click to edit, check to include:"))
+        layout.addWidget(QLabel("Double-click to edit, select to include:"))
         self.names_list = QListWidget()
         self.names_list.setSelectionMode(QListWidget.ExtendedSelection) # Allows multi-select for deletion
         self.names_list.model().dataChanged.connect(self.save_names)
