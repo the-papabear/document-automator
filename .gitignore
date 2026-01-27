@@ -2,3 +2,4 @@ builds
 docs
 .DS_Store
 .prettierrc
+src/venv
